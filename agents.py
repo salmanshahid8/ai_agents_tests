@@ -2,7 +2,7 @@
 Implémentations de base pour un système multi-agent simple utilisé dans le laboratoire
 'Design et Validation des Suites de Tests pour un Système Multi-Agent IA'.
 
-Cette version inclut EchoAgent et DecisionAgent pour les tests.
+Cette version inclut EchoAgent, DecisionAgent et RouterAgent pour les tests.
 """
 
 from __future__ import annotations
@@ -13,17 +13,26 @@ from typing import Any, Dict, List, Optional
 # --------------------------
 # Primitives de Messagerie
 # --------------------------
-
 @dataclass
 class Message:
     sender: str
-    recipient: Optional[str]  # None signifie diffusion générale
+    recipient: Optional[str] = None  # Explicite "None" pour diffusion générale
     topic: str
     payload: Dict[str, Any] = field(default_factory=dict)
     meta: Dict[str, Any] = field(default_factory=dict)
 
+    """Message encapsulant une communication entre agents.
+    Contient :
+        - `sender` : Nom de l'agent émetteur (str).
+        - `recipient` : Cible spécifique (None pour diffusion générale).
+        - `topic` : Sujet de la conversation (ex: "echo", "score").
+        - `payload` : Données structurées à transmettre.
+        - `meta` : Métadonnées optionnelles (ex: timestamp, priorité).
+    """
+
 class MessageBus:
-    """Un bus de messages minimal en mémoire."""
+    """Un bus de messages minimal en mémoire, centralisant les échanges entre agents."""
+
     def __init__(self) -> None:
         self._agents: Dict[str, BaseAgent] = {}
         self._history: List[Message] = []
@@ -50,7 +59,6 @@ class MessageBus:
 # --------------------------
 # Agent de Base
 # --------------------------
-
 class BaseAgent:
     def __init__(self, name: str) -> None:
         if not name or not name.strip():
@@ -92,7 +100,6 @@ class BaseAgent:
 # --------------------------
 # EchoAgent
 # --------------------------
-
 class EchoAgent(BaseAgent):
     """Répond aux messages en renvoyant ceux qui concernent le sujet 'echo' ou commencent par 'echo.'"""
     def handle(self, msg: Message) -> None:
@@ -106,7 +113,6 @@ class EchoAgent(BaseAgent):
 # --------------------------
 # DecisionAgent
 # --------------------------
-
 class DecisionAgent(BaseAgent):
     """Fait des décisions simples basées sur une note numérique."""
     def handle(self, msg: Message) -> None:
@@ -126,28 +132,21 @@ class DecisionAgent(BaseAgent):
 # --------------------------
 # RouterAgent
 # --------------------------
-
 class RouterAgent(BaseAgent):
-    """Route les messages selon des préfixes de sujets."""
-
+    """Routeur qui redirige les messages vers des agents spécifiques selon leur préfixe.
+    Exemple de mapping : {"echo.request": "agent1", "score.update": "decision"}."""
     def __init__(self, name: str, mapping: Dict[str, str]) -> None:
         super().__init__(name)
         self.mapping = dict(mapping)
 
     def handle(self, msg: Message) -> None:
-        if msg.sender == self.name:
+        """Route le message vers un agent cible si son préfixe correspond à une clé du mapping.
+        Exemple : Si `topic="echo.request"` et le mapping contient "echo.request" → redirige vers l'agent spécifié."""
+        if msg.sender == self.name or msg.topic.endswith(".reply"):
             return
-        if msg.topic.endswith(".reply"):
-            return
-
         target = None
         for key, agent_name in self.mapping.items():
-            if key.endswith("."):
                 if msg.topic.startswith(key):
-                    target = agent_name
-                    break
-            else:
-                if msg.topic == key:
                     target = agent_name
                     break
         if target:
