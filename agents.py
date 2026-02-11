@@ -37,13 +37,41 @@ class MessageBus:
         self._agents: Dict[str, BaseAgent] = {}
         self._history: List[Message] = []
 
-    def register(self, agent: "BaseAgent") -> None:
+
+
+    def register(self, callback: Callable[..., Any], event_type: str) -> None:
+        """Enregistre une fonction de rappel pour un type d'événement spécifique.
+
+        Args:
+            callback (Callable[..., Any]): La fonction à appeler lors de la réception de l'événement.
+                Doit correspondre à la structure attendue du payload de l'événement.
+            event_type (str): Le nom/type de l'événement auquel s'abonner.
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: Si le callback est invalide ou déjà enregistré.
+        """
         if agent.name in self._agents:
             raise ValueError(f"Nom de l'agent déjà enregistré : {agent.name}")
         self._agents[agent.name] = agent
         agent._bus = self
 
-    def send(self, msg: Message) -> None:
+    def send(self, event_type: str, payload: Any) -> None:
+        """Envoie un événement avec son payload aux abonnés correspondants.
+
+        Args:
+            event_type (str): Le nom/type de l'événement à envoyer.
+            payload (Any): Les données associées à l'événement (structure variable).
+
+        Returns:
+            None
+
+        Raises:
+            KeyError: Si le type d'événement n'est pas enregistré.
+            TypeError: Si le payload ne correspond pas aux attentes du callback.
+        """
         self._history.append(msg)
         if msg.recipient:
             agent = self._agents.get(msg.recipient)
@@ -62,7 +90,35 @@ class MessageBus:
 class BaseAgent:
     def __init__(self, name: str) -> None:
         if not name or not name.strip():
-            raise ValueError("Le nom de l'agent doit être une chaîne non vide")
+            raise ValueError("Le nom de l'agent doit être une chaîne non vide")def register(self, callback: Callable[..., Any], event_type: str) -> None:
+    """Enregistre une fonction de rappel pour un type d'événement spécifique.
+
+    Args:
+        callback (Callable[..., Any]): La fonction à appeler lors de la réception de l'événement.
+            Doit correspondre à la structure attendue du payload de l'événement.
+        event_type (str): Le nom/type de l'événement auquel s'abonner.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: Si le callback est invalide ou déjà enregistré.
+    """
+
+    def send(self, event_type: str, payload: Any) -> None:
+        """Envoie un événement avec son payload aux abonnés correspondants.
+
+        Args:
+            event_type (str): Le nom/type de l'événement à envoyer.
+            payload (Any): Les données associées à l'événement (structure variable).
+
+        Returns:
+            None
+
+        Raises:
+            KeyError: Si le type d'événement n'est pas enregistré.
+            TypeError: Si le payload ne correspond pas aux attentes du callback.
+        """
         self.name = name
         self._bus: Optional[MessageBus] = None
         self._inbox: List[Message] = []
@@ -103,13 +159,27 @@ class BaseAgent:
 class EchoAgent(BaseAgent):
     """Répond aux messages en renvoyant ceux qui concernent le sujet 'echo' ou commencent par 'echo.'"""
     def handle(self, msg: Message) -> None:
+        """Traitement des messages correspondant aux sujets 'echo' ou commençant par 'echo.'
+
+        Pour les messages de type écho (exactement "echo" ou commençant par "echo."), ce message est renvoyé au destinataire original sous le sujet "echo.reply".
+        Le contenu original du message est encapsulé dans une structure de payload avec la clé "echo".
+
+        Args:
+            msg (Message): Objet Message contenant :
+                - `msg.topic`: Sujet du message qui doit être exactement "echo" ou commencer par "echo."
+                - `msg.sender`: Identifiant du destinataire initial
+                - `msg.payload`: Contenu original du message
+
+        Remarques:
+            Les messages non de type écho sont ignorés (actuellement loggés à la console)
+            Ce traitement est une implémentation basique de fonctionnalité d'écho pour le système de messagerie.
+        """
         if msg.topic == "echo" or msg.topic.startswith("echo."):
             self.send(
-                recipient=msg.sender,
+                recipient=self.get_coordination().player_id,  # Utilise l'ID du joueur via coordination
                 topic="echo.reply",
                 payload={"echo": msg.payload}
             )
-
 # --------------------------
 # DecisionAgent
 # --------------------------
